@@ -2,22 +2,49 @@ import { z } from "zod";
 
 // ─── Image URL ────────────────────────────────────────────────────────────────
 // Accepts absolute HTTP/S URLs and relative paths (e.g. /uploads/img.jpg).
+// Empty string is treated as absent — coerced to null before the refine so
+// products with image_url:"" pass validation instead of being filtered out.
 // resolveImageUrl() will convert relative paths to full URLs at normalize time.
-const imageUrlSchema = z.string().refine(
-  (val) =>
-    val.startsWith("http://") ||
-    val.startsWith("https://") ||
-    val.startsWith("/"),
-  { message: "image_url must be an absolute URL or a path starting with /" },
-);
+const imageUrlSchema = z
+  .string()
+  .transform((val) => (val.trim() === "" ? null : val))
+  .pipe(
+    z
+      .string()
+      .refine(
+        (val) =>
+          val.startsWith("http://") ||
+          val.startsWith("https://") ||
+          val.startsWith("/"),
+        { message: "image_url must be an absolute URL or a path starting with /" },
+      )
+      .nullable(),
+  );
 
 // ─── Variant ──────────────────────────────────────────────────────────────────
-export const RawVariantSchema = z.object({
-  id: z.number(),
-  name: z.string().min(1, "Variant name is required."),
-  price: z.number().positive("Variant price must be greater than 0."),
-  stock: z.number().int().min(0).default(0),
-});
+const RawVariantStockSchema = z.preprocess(
+  (raw) => {
+    if (typeof raw !== "object" || raw === null) return raw;
+    const obj = raw as Record<string, unknown>;
+    // BE returns stockCount; also accept legacy stock field
+    return {
+      ...obj,
+      stock: obj.stockCount ?? obj.stock ?? null,
+      fulfillmentType: obj.fulfillment_type ?? obj.fulfillmentType ?? undefined,
+      costPrice: obj.cost_price ?? obj.costPrice ?? null,
+    };
+  },
+  z.object({
+    id: z.number(),
+    name: z.string().min(1, "Variant name is required."),
+    price: z.number().positive("Variant price must be greater than 0."),
+    stock: z.number().int().min(0).nullable().optional(),
+    fulfillmentType: z.enum(["INSTANT_DIRECT", "INSTANT_SHARED"]).optional(),
+    costPrice: z.number().min(0).nullable().optional(),
+  }),
+);
+
+export const RawVariantSchema = RawVariantStockSchema;
 
 // ─── Product ──────────────────────────────────────────────────────────────────
 /**

@@ -185,7 +185,7 @@ export default function ProductForm({ mode = "create", initialProduct }: Product
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => variantFields.append({ name: "", price: 0 })}
+            onClick={() => variantFields.append({ name: "", price: 0, costPrice: null })}
             className="border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
@@ -201,7 +201,7 @@ export default function ProductForm({ mode = "create", initialProduct }: Product
           {variantFields.fields.map((field, index) => (
             <div
               key={field.id}
-              className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start p-3 rounded-lg border border-gray-200 bg-gray-50"
+              className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start p-3 rounded-lg border border-gray-200 bg-gray-50"
             >
               <div className="flex flex-col gap-1">
                 <Label className="text-xs text-gray-500">Tên</Label>
@@ -215,17 +215,33 @@ export default function ProductForm({ mode = "create", initialProduct }: Product
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <Label className="text-xs text-gray-500">Giá ($)</Label>
+                <Label className="text-xs text-gray-500">Giá bán (₫)</Label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   min={0}
                   {...register(`variants.${index}.price`, { valueAsNumber: true })}
-                  placeholder="9.99"
+                  placeholder="35000"
                   className="h-8 text-sm border-gray-200 bg-white focus-visible:ring-cyan-500"
                 />
                 {errors.variants?.[index]?.price && (
                   <p className="text-xs text-red-500">{errors.variants[index]?.price?.message}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-gray-500">Giá vốn (₫)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min={0}
+                  {...register(`variants.${index}.costPrice`, {
+                    setValueAs: (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
+                  })}
+                  placeholder="20000"
+                  className="h-8 text-sm border-gray-200 bg-white focus-visible:ring-cyan-500"
+                />
+                {errors.variants?.[index]?.costPrice && (
+                  <p className="text-xs text-red-500">{errors.variants[index]?.costPrice?.message}</p>
                 )}
               </div>
               <button

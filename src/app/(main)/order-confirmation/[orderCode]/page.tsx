@@ -130,6 +130,13 @@ function getStatusConfig(
         subtext: "Đơn hàng đã hết hạn (quá 15 phút). Vui lòng tạo đơn hàng mới.",
         color: "text-gray-500",
       };
+    default:
+      return {
+        icon: <AlertCircle className="h-12 w-12 text-gray-400" />,
+        heading: "Trạng thái không xác định",
+        subtext: "Vui lòng liên hệ hỗ trợ.",
+        color: "text-gray-500",
+      };
   }
 }
 
@@ -216,12 +223,12 @@ export default function OrderConfirmationPage({
 
   // ── Task 5: retry payment handler ─────────────────────────────────────────
   async function handleRetryPayment() {
-    const method = (paymentInfo?.method ?? "VNPAY") as PaymentMethod;
+    const method = (paymentInfo?.method ?? "PAYOS") as PaymentMethod;
     setIsCreatingPayment(true);
     try {
       const payment = await PaymentService.createPayment(orderCode, method);
       const updated: PaymentInfo = {
-        paymentUrl: payment.paymentUrl,
+        paymentUrl: payment.paymentUrl ?? "",
         method: payment.method,
         amount: payment.amount,
         expiredAt: payment.expiredAt,
@@ -229,7 +236,7 @@ export default function OrderConfirmationPage({
       setPaymentInfo(updated);
       if (typeof window !== "undefined") {
         sessionStorage.setItem(`payment-${orderCode}`, JSON.stringify(updated));
-        window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+        if (payment.paymentUrl) window.location.href = payment.paymentUrl;
       }
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
@@ -244,6 +251,11 @@ export default function OrderConfirmationPage({
     setPollingReset((n) => n + 1); // re-arms the 3-minute timeout via useEffect
     refetch();
   }
+
+  // ── Countdown — must be before any early returns (Rules of Hooks) ──────────
+  const countdown = useOrderCountdown(
+    order?.status === "PENDING" ? order.createdAt : undefined,
+  );
 
   // ─── Loading state ─────────────────────────────────────────────────────────
   if (isLoading) {
@@ -284,16 +296,18 @@ export default function OrderConfirmationPage({
   }
 
   const statusConfig = getStatusConfig(order.status, isPollingTimedOut && !isTerminal);
-  const countdown = useOrderCountdown(order.status === "PENDING" ? order.createdAt : undefined);
+
+  // ── Free order (fully covered by discount) — no payment needed ───────────
+  const isFreeOrder = order.status === "PENDING" && order.totalAmount <= 0;
 
   // ── Task 3/4: Pay Now — visible while PENDING and we have a fresh URL ─────
-  const showPayNow = order.status === "PENDING" && !!paymentInfo?.paymentUrl && !isPollingTimedOut;
+  const showPayNow = order.status === "PENDING" && !isFreeOrder && !!paymentInfo?.paymentUrl && !isPollingTimedOut;
 
   // ── Task 4: Create payment link — when user returns without sessionStorage ─
   // Show immediately if order is PENDING but we have no payment URL in state.
   // Also show after polling times out (existing URL likely expired).
   const showCreatePaymentLink =
-    order.status === "PENDING" && (!paymentInfo?.paymentUrl || isPollingTimedOut);
+    order.status === "PENDING" && !isFreeOrder && (!paymentInfo?.paymentUrl || isPollingTimedOut);
 
   const showRetryPolling = isPollingTimedOut && !isTerminal;
 
@@ -332,6 +346,15 @@ export default function OrderConfirmationPage({
             {countdown.expired
               ? "Đơn hàng đã hết hạn thanh toán"
               : `Thanh toán trong: ${countdown.mins}:${String(countdown.secs).padStart(2, "0")}`}
+          </div>
+        )}
+
+        {/* ── Free order — no payment needed ── */}
+        {isFreeOrder && (
+          <div className="flex flex-col items-center gap-1.5 mt-1">
+            <p className="text-xs text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              Đơn hàng này được miễn phí bởi mã giảm giá — không cần thanh toán.
+            </p>
           </div>
         )}
 
@@ -398,8 +421,8 @@ export default function OrderConfirmationPage({
         </div>
 
         <ul className="flex flex-col gap-2 border-t border-gray-100 pt-3">
-          {order.items.map((item) => (
-            <li key={item.variantId} className="flex justify-between text-sm">
+          {order.items.map((item, idx) => (
+            <li key={idx} className="flex justify-between text-sm">
               <span className="text-gray-700 flex-1 mr-2">
                 {item.productName}{" "}
                 <span className="text-gray-400">
@@ -407,7 +430,7 @@ export default function OrderConfirmationPage({
                 </span>
               </span>
               <span className="text-gray-900 font-medium shrink-0">
-                {formatVND(item.subtotal)}
+                {formatVND(item.unitPrice * item.quantity)}
               </span>
             </li>
           ))}

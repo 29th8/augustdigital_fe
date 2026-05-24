@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ShoppingBag, Tag } from "lucide-react";
+import { ShoppingBag, Tag, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,13 @@ import { useCart, CART_QUERY_KEY } from "@/hooks/useCart";
 import { useCartStore } from "@/store/useCartStore";
 import { OrderService } from "@/services/order.service";
 import { PaymentService } from "@/services/payment.service";
+import { DiscountService } from "@/services/discount.service";
 import { formatVND } from "@/lib/formatVND";
 import useAuthStore from "@/store/useAuthStore";
 import { TOAST } from "@/lib/toastMessages";
 import { savePendingOrder } from "@/hooks/usePendingOrderRecovery";
 import type { Cart } from "@/types/cart";
+import type { DiscountPreview } from "@/services/discount.service";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,16 @@ const CheckoutSchema = z.object({
 type CheckoutFormValues = z.infer<typeof CheckoutSchema>;
 
 const EMPTY_CART: Cart = { items: [], totalAmount: 0 };
+
+function translateDiscountError(message: string | null): string {
+  switch (message) {
+    case "Discount code does not exist": return "Mã giảm giá không tồn tại.";
+    case "Discount code is inactive": return "Mã giảm giá không còn hiệu lực.";
+    case "Discount code has expired": return "Mã giảm giá đã hết hạn.";
+    case "Discount code has reached its usage limit": return "Mã giảm giá đã hết lượt sử dụng.";
+    default: return message ?? "Mã giảm giá không hợp lệ.";
+  }
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +72,7 @@ export default function CheckoutPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(CheckoutSchema),
@@ -72,6 +85,41 @@ export default function CheckoutPage() {
 
   const items = cart?.items ?? [];
   const total = cart?.totalAmount ?? 0;
+
+  // ── Discount preview ──────────────────────────────────────────────────────
+  const discountCodeValue = useWatch({ control, name: "discountCode" });
+  const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    const code = discountCodeValue?.trim() ?? "";
+    if (!code) {
+      setDiscountPreview(null);
+      setPreviewError(null);
+      return;
+    }
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+    previewTimerRef.current = setTimeout(async () => {
+      try {
+        const cartTotal = cart?.totalAmount ?? 0;
+        const preview = await DiscountService.previewDiscount(code, cartTotal);
+        setDiscountPreview(preview);
+      } catch (err) {
+        console.error("[discountPreview] error:", err);
+        setDiscountPreview(null);
+        setPreviewError("Không thể kiểm tra mã giảm giá.");
+      } finally {
+        setIsPreviewLoading(false);
+      }
+    }, 600);
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    };
+  }, [discountCodeValue, cart?.totalAmount]);
 
   async function onSubmit(values: CheckoutFormValues) {
     // ── Task 6: hard lock prevents duplicate order creation ──────────────────
@@ -107,40 +155,51 @@ export default function CheckoutPage() {
         createdAt: Date.now(),
       });
 
-      // Step 2: Create payment URL (VNPAY as default)
-      let paymentUrl: string | null = null;
-      let paymentMethod = "VNPAY";
+      // Step 2: Create PayOS payment link (skip if discount covered full amount)
+      const finalAmount = discountPreview?.isValid ? discountPreview.finalAmount : (cart?.totalAmount ?? 0);
+      if (finalAmount <= 0) {
+        toast.success(TOAST.ORDER_CREATED);
+        router.push(
+          `/order-confirmation/${order.orderCode}?email=${encodeURIComponent(values.email)}`,
+        );
+        return;
+      }
+
       try {
-        const payment = await PaymentService.createPayment(order.orderCode, "VNPAY");
-        paymentUrl = payment.paymentUrl;
-        paymentMethod = payment.method;
+        const payment = await PaymentService.createPayment(order.orderCode, "PAYOS");
+
+        // Save order_code + email so /payment/result can look up the order
+        // (PayOS returns numeric orderCode in params, not the ORD-... string)
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
-            `payment-${order.orderCode}`,
+            "pending-payment",
             JSON.stringify({
-              paymentUrl: payment.paymentUrl,
-              method: payment.method,
+              orderCode: order.orderCode,
+              email: values.email,
               amount: payment.amount,
               expiredAt: payment.expiredAt,
             }),
           );
         }
+
+        toast.success(TOAST.ORDER_CREATED);
+
+        // Redirect same tab → PayOS handles payment → returns to /payment/result
+        if (payment.paymentUrl && typeof window !== "undefined") {
+          window.location.href = payment.paymentUrl;
+          return;
+        }
       } catch {
-        // Payment URL creation failed — navigate anyway; user can retry on confirmation page.
         toast.error(TOAST.PAYMENT_CREATE_ERROR);
       }
 
+      // Fallback if no payment URL (e.g. payment creation failed)
       toast.success(TOAST.ORDER_CREATED);
 
       // Step 3: Navigate to order confirmation
       router.push(
         `/order-confirmation/${order.orderCode}?email=${encodeURIComponent(values.email)}`,
       );
-
-      // Open payment URL in new tab if available (non-blocking)
-      if (paymentUrl && typeof window !== "undefined") {
-        window.open(paymentUrl, "_blank", "noopener,noreferrer");
-      }
 
       // Don't reset submittingRef — navigation is underway; component will unmount.
     } catch (err: unknown) {
@@ -200,17 +259,40 @@ export default function CheckoutPage() {
               label="Mã giảm giá"
               error={errors.discountCode?.message}
             >
-              <div className="relative">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input
-                  id="discountCode"
-                  placeholder="SAVE10 (tuỳ chọn)"
-                  {...register("discountCode")}
-                  className={`${INPUT_CLASS} pl-8`}
-                />
+              <div className="flex flex-col gap-1.5">
+                <div className="relative">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    id="discountCode"
+                    placeholder="SAVE10 (tuỳ chọn)"
+                    {...register("discountCode")}
+                    className={`${INPUT_CLASS} pl-8 pr-8`}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {isPreviewLoading && <Loader2 className="h-3.5 w-3.5 text-gray-400 animate-spin" />}
+                    {!isPreviewLoading && discountPreview?.isValid && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                    {!isPreviewLoading && discountPreview && !discountPreview.isValid && <XCircle className="h-3.5 w-3.5 text-red-400" />}
+                  </div>
+                </div>
+                {discountPreview && !discountPreview.isValid && (
+                  <p className="text-xs text-red-500">{translateDiscountError(discountPreview.message)}</p>
+                )}
+                {previewError && (
+                  <p className="text-xs text-red-500">{previewError}</p>
+                )}
+                {discountPreview?.isValid && (
+                  <p className="text-xs text-green-600">Mã hợp lệ — giảm {formatVND(discountPreview.discountAmount)}</p>
+                )}
               </div>
             </FormField>
           </fieldset>
+
+          {/* ── Warn when discount reduces total to 0 ── */}
+          {discountPreview?.isValid && discountPreview.finalAmount <= 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Mã giảm giá này giảm toàn bộ số tiền. Đơn hàng sẽ được đặt miễn phí — không cần thanh toán.
+            </p>
+          )}
 
           {/* ── Task 2: button disabled while submitting or cart empty ── */}
           <Button
@@ -250,9 +332,23 @@ export default function CheckoutPage() {
               </ul>
             )}
 
+            {discountPreview?.isValid && (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Tạm tính</span>
+                  <span className="text-gray-400 line-through">{formatVND(total)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600">Giảm giá ({discountPreview.code})</span>
+                  <span className="text-green-600">-{formatVND(discountPreview.discountAmount)}</span>
+                </div>
+              </>
+            )}
             <div className="border-t border-gray-200 pt-3 flex justify-between">
               <span className="text-sm font-semibold text-gray-700">Tổng cộng</span>
-              <span className="text-base font-bold text-gray-900">{formatVND(total)}</span>
+              <span className="text-base font-bold text-gray-900">
+                {formatVND(discountPreview?.isValid ? discountPreview.finalAmount : total)}
+              </span>
             </div>
           </div>
         </div>

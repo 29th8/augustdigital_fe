@@ -16,6 +16,7 @@ import type {
 // Converts validated raw API shape (snake_case) to the UI Product type.
 // Input is typed — the eslint-disable-any comment is no longer needed.
 function normalizeProduct(raw: RawProduct): Product {
+  // imageUrlSchema already coerces "" → null, so rawUrl is string | null
   const rawUrl = raw.image_url ?? raw.imageUrl ?? null;
   return {
     id: raw.id,
@@ -24,14 +25,19 @@ function normalizeProduct(raw: RawProduct): Product {
     category: raw.category_name ?? raw.category ?? "",
     categoryId: raw.category_id ?? raw.categoryId ?? undefined,
     imageUrl: resolveImageUrl(rawUrl) ?? undefined,
-    fulfillmentType: raw.fulfillment_type ?? raw.fulfillmentType ?? undefined,
+    // BE moved fulfillmentType to variant level — fall back to first variant if product level absent
+    fulfillmentType:
+      raw.fulfillment_type ??
+      raw.fulfillmentType ??
+      raw.variants[0]?.fulfillmentType ??
+      undefined,
     variants: raw.variants,
   };
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 export const ProductService = {
-  async getProducts(params: ProductListParams = {}): Promise<PaginatedData<Product>> {
+  async getProducts(params: ProductListParams = {}, signal?: AbortSignal): Promise<PaginatedData<Product>> {
     const { page = 0, limit = 12, keyword, category_id, min_price, max_price, sort } = params;
     const res = await apiClient.get<ApiResponse<unknown>>("/api/v1/products", {
       params: {
@@ -43,6 +49,7 @@ export const ProductService = {
         ...(max_price !== undefined && { max_price }),
         ...(sort && { sort }),
       },
+      signal,
     });
 
     // Hard-validate the pagination envelope (structural).
@@ -62,8 +69,8 @@ export const ProductService = {
     return { page_info: rawPage.page_info, items };
   },
 
-  async getProductById(id: number): Promise<Product> {
-    const res = await apiClient.get<ApiResponse<unknown>>(`/api/v1/products/${id}`);
+  async getProductById(id: number, signal?: AbortSignal): Promise<Product> {
+    const res = await apiClient.get<ApiResponse<unknown>>(`/api/v1/products/${id}`, { signal });
     const raw = parseApiResponse(RawProductSchema, res.data.data, "getProductById");
     return normalizeProduct(raw);
   },
@@ -75,7 +82,11 @@ export const ProductService = {
       categoryId: Number(payload.categoryId),
       image_url: payload.imageUrl ?? null,
       fulfillment_type: payload.fulfillmentType ?? "INSTANT_DIRECT",
-      variants: payload.variants.map((v) => ({ name: v.name, price: Number(v.price) })),
+      variants: payload.variants.map((v) => ({
+        name: v.name,
+        price: Number(v.price),
+        ...(v.costPrice != null && { cost_price: Number(v.costPrice) }),
+      })),
     };
     const res = await apiClient.post<ApiResponse<unknown>>("/api/v1/admin/products", body);
     const raw = parseApiResponse(RawProductSchema, res.data.data, "createProduct");
@@ -90,10 +101,23 @@ export const ProductService = {
       ...(payload.imageUrl !== undefined && { image_url: payload.imageUrl }),
       ...(payload.fulfillmentType !== undefined && { fulfillment_type: payload.fulfillmentType }),
       ...(payload.variants !== undefined && {
-        variants: payload.variants.map((v) => ({ name: v.name, price: Number(v.price) })),
+        variants: payload.variants.map((v) => ({
+          ...(v.id !== undefined && { id: v.id }),
+          name: v.name,
+          price: Number(v.price),
+          ...(v.costPrice != null && { cost_price: Number(v.costPrice) }),
+          // BE reads fulfillmentType per-variant; propagate product-level value to all variants
+          ...(payload.fulfillmentType !== undefined && { fulfillment_type: payload.fulfillmentType }),
+        })),
       }),
     };
+    console.log("[updateProduct] request body:", JSON.stringify(body, null, 2));
     const res = await apiClient.put<ApiResponse<unknown>>(`/api/v1/admin/products/${id}`, body);
+    console.log("[updateProduct] response data:", JSON.stringify(res.data?.data, null, 2));
+    // BE may return null data on update — fall back to re-fetching the product
+    if (!res.data?.data) {
+      return ProductService.getProductById(id);
+    }
     const raw = parseApiResponse(RawProductSchema, res.data.data, "updateProduct");
     return normalizeProduct(raw);
   },

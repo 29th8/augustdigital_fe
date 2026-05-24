@@ -19,3 +19,41 @@ export interface FileImportResult {
   skipped: number;
   totalRows: number;
 }
+
+export interface ImportInventoryResult {
+  inventoryItemIds: number[];
+  imported: number;
+}
+
+export interface ProfileInput {
+  profile_name: string;
+  pin_code: string | null;
+  max_slots: number;
+}
+
+export interface ImportProfilesPayload {
+  inventory_item_id: number;
+  profiles: ProfileInput[];
+}
+
+export type InventoryItemStatus = "AVAILABLE" | "IN_USE" | "SOLD";
+export type ProfileStatus = "AVAILABLE" | "ASSIGNED";
+
+export interface AccountProfile {
+  id: number;
+  profileName: string;
+  pinCode: string | null;
+  maxSlots: number;
+  assignedSlots: number;
+  status: ProfileStatus;
+}
+
+export interface InventoryItemDetail {
+  id: number;
+  type: InventoryItemType;
+  value: string;
+  status: InventoryItemStatus;
+  profileCount: number;
+  usedSlots: number;
+  profiles: AccountProfile[];
+}

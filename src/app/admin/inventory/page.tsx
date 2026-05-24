@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse,
@@ -15,6 +15,10 @@ import {
   Lightbulb,
   Activity,
   PackageX,
+  Plus,
+  Trash2,
+  Users,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,7 +35,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { InventoryService } from "@/services/inventory.service";
 import { ProductService } from "@/services/product.service";
 import type { ApiErrorResponse } from "@/types/api";
-import type { InventoryItemType } from "@/types/inventory";
+import type { InventoryItemType, ProfileInput, InventoryItemDetail } from "@/types/inventory";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -109,7 +113,7 @@ function computeAnalytics(
 }
 
 function parseImportPreview(text: string): ImportPreview {
-  const lines = text.split("\n");
+  const lines = text.split(/\r?\n|\r/);
   const valid = lines.filter((l) => l.trim().length > 0).length;
   return { total: lines.length, valid, empty: lines.length - valid };
 }
@@ -184,6 +188,20 @@ export default function AdminInventoryPage() {
   const [importSuccess, setImportSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Profile import state (ACCOUNT / INSTANT_SHARED) ─────────────────────
+  const [lastItemIds, setLastItemIds] = useState<number[]>([]);
+  const [lastItemIdsIndex, setLastItemIdsIndex] = useState(0);
+  const [manualItemId, setManualItemId] = useState("");
+  const [selectedItem, setSelectedItem] = useState<InventoryItemDetail | null>(null);
+  const [itemSearch, setItemSearch] = useState("");
+  const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
+  const [profiles, setProfiles] = useState<ProfileInput[]>([
+    { profile_name: "", pin_code: null, max_slots: 1 },
+  ]);
+
+  // Derived: active item ID from queue, selected item, or manual input
+  const lastItemId = lastItemIds[lastItemIdsIndex] ?? selectedItem?.id ?? null;
+
   // ── Activity log ─────────────────────────────────────────────────────────
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
 
@@ -219,6 +237,24 @@ export default function AdminInventoryPage() {
     staleTime: 5_000,
   });
 
+  // ── Inventory items list (for profile assignment) ────────────────────────
+  const {
+    data: inventoryItems,
+    isLoading: itemsLoading,
+    refetch: refetchItems,
+  } = useQuery({
+    queryKey: ["inventory-items", selectedVariantId],
+    queryFn: () => InventoryService.listItems(selectedVariantId!),
+    enabled: selectedVariantId !== null,
+    staleTime: 30_000,
+  });
+
+  const filteredItems = (inventoryItems ?? []).filter(
+    (item) =>
+      item.type === "ACCOUNT" &&
+      item.value.toLowerCase().includes(itemSearch.toLowerCase()),
+  );
+
   // ── Analytics ────────────────────────────────────────────────────────────
   const analytics =
     stats && selectedVariantId !== null
@@ -230,23 +266,47 @@ export default function AdminInventoryPage() {
   const isLowStock = stats !== undefined && stats.available > 0 && stats.available <= LOW_STOCK_THRESHOLD;
   const isOutOfStock = stats !== undefined && stats.available === 0;
 
-  // Reset baseline when switching variant
+  // Reset state + auto-select import type when switching variant
   useEffect(() => {
     setImportSuccess(false);
-  }, [selectedVariantId]);
+    setSelectedItem(null);
+    setLastItemIds([]);
+    setLastItemIdsIndex(0);
+    setManualItemId("");
+    setItemSearch("");
+    // Variant-level fulfillmentType takes priority over product-level
+    const ft = selectedVariant?.fulfillmentType ?? selectedProduct?.fulfillmentType;
+    if (ft === "INSTANT_SHARED") {
+      setImportType("ACCOUNT");
+    } else if (ft === "INSTANT_DIRECT") {
+      setImportType("KEY");
+    }
+  }, [selectedVariantId, selectedVariant?.fulfillmentType, selectedProduct?.fulfillmentType]);
 
   // ── JSON import ──────────────────────────────────────────────────────────
-  const jsonImportMutation = useMutation<string, ApiErrorResponse>({
+  const jsonImportMutation = useMutation<{ inventoryItemIds: number[]; imported: number }, ApiErrorResponse>({
     mutationFn: () => {
-      const keys = keysText.split("\n").map((k) => k.trim()).filter(Boolean);
+      const keys = keysText.split(/\r?\n|\r/).map((k) => k.trim()).filter(Boolean);
       return InventoryService.importKeys({ variantId: selectedVariantId!, type: importType, keys });
     },
-    onSuccess: (msg) => {
-      toast.success(msg);
+    onSuccess: (result) => {
+      const label = importType === "ACCOUNT" ? "tài khoản" : "keys";
+      const detail = `Đã nhập ${result.imported} ${label} cho "${selectedVariant?.name ?? selectedVariantId}"`;
+      const firstId = result.inventoryItemIds[0];
+      toast.success(
+        importType === "ACCOUNT" && firstId
+          ? `${detail} · Item ID: ${firstId}${result.inventoryItemIds.length > 1 ? ` (+${result.inventoryItemIds.length - 1})` : ""}`
+          : detail,
+      );
+      if (importType === "ACCOUNT" && result.inventoryItemIds.length > 0) {
+        setLastItemIds(result.inventoryItemIds);
+        setLastItemIdsIndex(0);
+        setManualItemId(String(result.inventoryItemIds[0]));
+      }
       logActivity({
         action: "import_json",
         variantName: selectedVariant?.name ?? `Variant #${selectedVariantId}`,
-        detail: msg,
+        detail,
       });
       setKeysText("");
       setImportPreview(null);
@@ -262,7 +322,7 @@ export default function AdminInventoryPage() {
     mutationFn: () =>
       InventoryService.importFile(selectedVariantId!, importType, selectedFile!),
     onSuccess: (result) => {
-      const detail = `Import thành công: ${result.imported} keys (bỏ qua ${result.skipped} dòng trống)`;
+      const detail = `Đã nhập ${result.imported} keys cho "${selectedVariant?.name ?? selectedVariantId}"`;
       toast.success(detail);
       logActivity({
         action: "import_file",
@@ -276,6 +336,37 @@ export default function AdminInventoryPage() {
       queryClient.invalidateQueries({ queryKey: statsQueryKey });
     },
     onError: (err: ApiErrorResponse) => toast.error(err.message ?? "Import file thất bại"),
+  });
+
+  // ── Profile import ───────────────────────────────────────────────────────
+  const profileImportMutation = useMutation({
+    mutationFn: () => {
+      const itemId = lastItemId ?? Number(manualItemId);
+      return InventoryService.importProfiles({
+        inventory_item_id: itemId,
+        profiles: profiles.map((p) => ({
+          ...p,
+          pin_code: p.pin_code?.trim() || null,
+        })),
+      });
+    },
+    onSuccess: () => {
+      const nextIndex = lastItemIdsIndex + 1;
+      const hasMore = nextIndex < lastItemIds.length;
+      if (hasMore) {
+        toast.success(`Đã thêm ${profiles.length} profile cho tài khoản #${lastItemId}. Tiếp theo: #${lastItemIds[nextIndex]}`);
+        setLastItemIdsIndex(nextIndex);
+        setManualItemId(String(lastItemIds[nextIndex]));
+      } else {
+        toast.success(`Đã thêm ${profiles.length} profile thành công.`);
+        setLastItemIds([]);
+        setLastItemIdsIndex(0);
+        setManualItemId("");
+      }
+      setProfiles([{ profile_name: "", pin_code: null, max_slots: 1 }]);
+      queryClient.invalidateQueries({ queryKey: ["inventory-items", selectedVariantId] });
+    },
+    onError: (err: ApiErrorResponse) => toast.error(err.message ?? "Thêm profile thất bại"),
   });
 
   // ── Stuck-order recovery ─────────────────────────────────────────────────
@@ -299,7 +390,7 @@ export default function AdminInventoryPage() {
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const canImport = selectedVariantId !== null;
-  const jsonKeys = keysText.split("\n").filter((l) => l.trim().length > 0).length;
+  const jsonKeys = keysText.split(/\r?\n|\r/).filter((l) => l.trim().length > 0).length;
   const isImporting = jsonImportMutation.isPending || fileImportMutation.isPending;
 
   return (
@@ -565,21 +656,32 @@ export default function AdminInventoryPage() {
 
             {/* Credential type */}
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-gray-500">Loại dữ liệu</Label>
+              <Label className="text-xs text-gray-500">
+                Loại dữ liệu
+                {(selectedVariant?.fulfillmentType ?? selectedProduct?.fulfillmentType) && (
+                  <span className="ml-1.5 text-cyan-600 font-semibold">
+                    (tự động: {selectedVariant?.fulfillmentType ?? selectedProduct?.fulfillmentType})
+                  </span>
+                )}
+              </Label>
               <div className="flex gap-2">
-                {(["KEY", "ACCOUNT"] as InventoryItemType[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setImportType(t)}
-                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                      importType === t
-                        ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {t === "KEY" ? "🔑 KEY" : "👤 ACCOUNT"}
-                  </button>
-                ))}
+                {(["KEY", "ACCOUNT"] as InventoryItemType[]).map((t) => {
+                  const locked = (selectedVariant?.fulfillmentType ?? selectedProduct?.fulfillmentType) !== undefined;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => !locked && setImportType(t)}
+                      disabled={locked}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                        importType === t
+                          ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      {t === "KEY" ? "🔑 KEY" : "👤 ACCOUNT"}
+                    </button>
+                  );
+                })}
               </div>
               <p className="text-xs text-gray-400">
                 {importType === "KEY"
@@ -623,9 +725,9 @@ export default function AdminInventoryPage() {
                   {keysText.length > 0 && (
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-cyan-600 font-semibold">{jsonKeys} keys hợp lệ</span>
-                      {keysText.split("\n").length - jsonKeys > 0 && (
+                      {keysText.split(/\r?\n|\r/).length - jsonKeys > 0 && (
                         <span className="text-gray-400">
-                          · {keysText.split("\n").length - jsonKeys} dòng trống
+                          · {keysText.split(/\r?\n|\r/).length - jsonKeys} dòng trống
                         </span>
                       )}
                     </div>
@@ -745,6 +847,334 @@ export default function AdminInventoryPage() {
               </div>
             )}
           </div>
+
+          {/* ── Profile import (always visible — dùng để thêm profiles vào bất kỳ account nào) ── */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-cyan-600" />
+                <h2 className="text-sm font-semibold text-gray-700">
+                  Bước 2 — Nhập profiles / slots
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400">
+                Sau khi nhập tài khoản chính ở bước 1, thêm các profile (slot) cho tài khoản đó.
+              </p>
+
+              {/* Queue progress banner (when multiple accounts imported) */}
+              {lastItemIds.length > 1 && (
+                <div className="flex items-center justify-between bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-2">
+                  <span className="text-xs text-cyan-700 font-medium">
+                    Tài khoản {lastItemIdsIndex + 1} / {lastItemIds.length}
+                    {" · "}Item ID #{lastItemIds[lastItemIdsIndex]}
+                  </span>
+                  <div className="flex gap-1">
+                    {lastItemIds.map((id, i) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setLastItemIdsIndex(i);
+                          setManualItemId(String(id));
+                          setProfiles([{ profile_name: "", pin_code: null, max_slots: 1 }]);
+                        }}
+                        className={`h-5 w-5 rounded-full text-[10px] font-bold transition-colors ${
+                          i === lastItemIdsIndex
+                            ? "bg-cyan-600 text-white"
+                            : "bg-cyan-100 text-cyan-600 hover:bg-cyan-200"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Account picker */}
+              {selectedVariantId ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-gray-500">Chọn tài khoản</Label>
+                    <button
+                      type="button"
+                      onClick={() => refetchItems()}
+                      className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Làm mới
+                    </button>
+                  </div>
+
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <Input
+                      placeholder="Tìm theo email..."
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      className="pl-8 border-gray-200 bg-white text-gray-900 text-sm h-8"
+                    />
+                  </div>
+
+                  {/* Table */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {itemsLoading ? (
+                      <div className="flex items-center justify-center py-6 gap-2 text-xs text-gray-400">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Đang tải...
+                      </div>
+                    ) : filteredItems.length === 0 ? (
+                      <p className="text-xs text-gray-400 text-center py-6">
+                        {itemSearch ? "Không tìm thấy kết quả." : "Không có tài khoản ACCOUNT nào."}
+                      </p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                          <tr>
+                            <th className="w-6 px-2 py-2" />
+                            <th className="text-left px-3 py-2 text-gray-500 font-medium">Email</th>
+                            <th className="text-center px-2 py-2 text-gray-500 font-medium">Profiles</th>
+                            <th className="text-center px-2 py-2 text-gray-500 font-medium">Trạng thái</th>
+                            <th className="px-2 py-2" />
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredItems.map((item) => {
+                            const isSelected = selectedItem?.id === item.id || lastItemIds[lastItemIdsIndex] === item.id;
+                            const isExpanded = expandedItemId === item.id;
+                            return (
+                              <React.Fragment key={item.id}>
+                                <tr
+                                  key={item.id}
+                                  className={`transition-colors ${isSelected ? "bg-cyan-50" : "hover:bg-gray-50"}`}
+                                >
+                                  <td className="px-2 py-2 text-center">
+                                    {item.profiles.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                        title={isExpanded ? "Thu gọn" : "Xem profiles"}
+                                      >
+                                        <span className={`inline-block transition-transform ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 font-mono text-gray-800 truncate max-w-[160px]">
+                                    {item.value}
+                                  </td>
+                                  <td className="px-2 py-2 text-center">
+                                    <span className={`font-semibold ${item.profileCount === 0 ? "text-amber-600" : "text-gray-700"}`}>
+                                      {item.profileCount}
+                                    </span>
+                                    {item.profileCount === 0 && (
+                                      <span className="ml-1 text-amber-500">⚠</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-2 text-center">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      item.status === "AVAILABLE"
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : item.status === "IN_USE"
+                                        ? "bg-blue-50 text-blue-700"
+                                        : "bg-gray-100 text-gray-500"
+                                    }`}>
+                                      {item.status === "AVAILABLE" ? "Còn trống" : item.status === "IN_USE" ? "Đang dùng" : "Đã bán"}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedItem(item);
+                                        setManualItemId(String(item.id));
+                                        setLastItemIds([]);
+                                        setLastItemIdsIndex(0);
+                                        setExpandedItemId(item.id);
+                                      }}
+                                      className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                                        isSelected
+                                          ? "bg-cyan-600 text-white"
+                                          : "bg-gray-100 text-gray-600 hover:bg-cyan-100 hover:text-cyan-700"
+                                      }`}
+                                    >
+                                      {isSelected ? "✓ Đã chọn" : "Chọn"}
+                                    </button>
+                                  </td>
+                                </tr>
+                                {isExpanded && item.profiles.length > 0 && (
+                                  <tr className="bg-gray-50">
+                                    <td colSpan={5} className="px-4 py-2">
+                                      <table className="w-full text-[11px]">
+                                        <thead>
+                                          <tr className="text-gray-400 border-b border-gray-200">
+                                            <th className="text-left pb-1 font-medium">Tên profile</th>
+                                            <th className="text-left pb-1 font-medium">PIN</th>
+                                            <th className="text-center pb-1 font-medium">Slots</th>
+                                            <th className="text-center pb-1 font-medium">Trạng thái</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                          {item.profiles.map((p) => (
+                                            <tr key={p.id}>
+                                              <td className="py-1 font-medium text-gray-700">{p.profileName}</td>
+                                              <td className="py-1 font-mono text-gray-600">
+                                                {p.pinCode ?? <span className="text-gray-400 italic">—</span>}
+                                              </td>
+                                              <td className="py-1 text-center text-gray-600">
+                                                {p.assignedSlots}/{p.maxSlots}
+                                              </td>
+                                              <td className="py-1 text-center">
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                  p.status === "AVAILABLE"
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : "bg-blue-50 text-blue-700"
+                                                }`}>
+                                                  {p.status === "AVAILABLE" ? "Còn trống" : "Đã gán"}
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Selected account summary */}
+                  {(selectedItem || lastItemId) && (
+                    <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5">
+                      Đang thêm profile cho:{" "}
+                      <span className="font-mono font-semibold">
+                        {selectedItem?.value ?? `Item #${lastItemId}`}
+                      </span>
+                      {" "}(ID: {lastItemId})
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">Chọn biến thể để xem danh sách tài khoản.</p>
+              )}
+
+              {/* Profiles list */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-gray-500">Danh sách profiles</Label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setProfiles((p) => [
+                        ...p,
+                        { profile_name: "", pin_code: null, max_slots: 1 },
+                      ])
+                    }
+                    className="flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Thêm profile
+                  </button>
+                </div>
+
+                {profiles.map((profile, idx) => (
+                  <div
+                    key={idx}
+                    className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-center"
+                  >
+                    <Input
+                      placeholder="Tên profile (VD: Profile 1)"
+                      value={profile.profile_name}
+                      onChange={(e) =>
+                        setProfiles((p) =>
+                          p.map((x, i) =>
+                            i === idx ? { ...x, profile_name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      className="border-gray-200 bg-white text-gray-900 text-xs h-8"
+                    />
+                    <Input
+                      placeholder="PIN (để trống nếu không có)"
+                      value={profile.pin_code ?? ""}
+                      onChange={(e) =>
+                        setProfiles((p) =>
+                          p.map((x, i) =>
+                            i === idx
+                              ? { ...x, pin_code: e.target.value || null }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="border-gray-200 bg-white text-gray-900 text-xs h-8"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      placeholder="Slots"
+                      value={profile.max_slots}
+                      onChange={(e) =>
+                        setProfiles((p) =>
+                          p.map((x, i) =>
+                            i === idx
+                              ? { ...x, max_slots: Math.max(1, Number(e.target.value)) }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="border-gray-200 bg-white text-gray-900 text-xs h-8"
+                    />
+                    <button
+                      type="button"
+                      disabled={profiles.length === 1}
+                      onClick={() =>
+                        setProfiles((p) => p.filter((_, i) => i !== idx))
+                      }
+                      className="h-8 w-8 flex items-center justify-center text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex gap-1 text-[11px] text-gray-400 px-0.5">
+                  <span className="flex-1">Tên profile</span>
+                  <span className="flex-1">PIN</span>
+                  <span className="w-20">Max slots</span>
+                  <span className="w-8" />
+                </div>
+              </div>
+
+              <ConfirmDialog
+                trigger={
+                  <Button
+                    disabled={
+                      profileImportMutation.isPending ||
+                      (!lastItemId && !manualItemId) ||
+                      profiles.some((p) => !p.profile_name.trim())
+                    }
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:opacity-60"
+                  >
+                    {profileImportMutation.isPending ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang thêm…</>
+                    ) : (
+                      <><Users className="mr-2 h-4 w-4" />Thêm {profiles.length} profile</>
+                    )}
+                  </Button>
+                }
+                title="Xác nhận thêm profiles"
+                description={`Thêm ${profiles.length} profile vào Inventory Item #${lastItemId ?? manualItemId}?`}
+                confirmLabel="Thêm profiles"
+                destructive={false}
+                onConfirm={() => profileImportMutation.mutate()}
+              />
+            </div>
         </div>
       </div>
     </div>

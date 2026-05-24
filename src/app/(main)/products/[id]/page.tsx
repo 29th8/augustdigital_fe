@@ -93,7 +93,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const activeStock = active ? variantStock[active.id] : undefined;
+  // variantStock (from add-to-cart errors) is most accurate; fall back to active.stock from BE.
+  // When both are absent, treat as in-stock (undefined → StockBadge shows "Còn hàng" by default).
+  const activeStock: number | undefined = active
+    ? (variantStock[active.id] ?? active.stock ?? undefined)
+    : undefined;
   const isOutOfStock = activeStock === 0;
 
   return (
@@ -143,19 +147,30 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 Chọn gói
               </p>
               <div className="flex flex-wrap gap-2">
-                {product.variants.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => handleSelectVariant(v)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                      active?.id === v.id
-                        ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                        : "border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {v.name}
-                  </button>
-                ))}
+                {product.variants.map((v) => {
+                  const outOfStock = (variantStock[v.id] ?? v.stock ?? undefined) === 0;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => handleSelectVariant(v)}
+                      disabled={outOfStock}
+                      className={`relative px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        outOfStock
+                          ? "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed line-through"
+                          : active?.id === v.id
+                          ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                          : "border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {v.name}
+                      {outOfStock && (
+                        <span className="absolute -top-1.5 -right-1.5 text-[9px] font-semibold bg-red-100 text-red-500 border border-red-200 rounded-full px-1 leading-4">
+                          Hết
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -170,19 +185,21 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               {/* Stock badge — backend-driven, appears after first add attempt */}
               <StockBadge stock={activeStock} />
 
-              {/* ── Task 2 & 6: enabled unless confirmed out-of-stock ── */}
-              <Button
-                disabled={isOutOfStock || addMutation.isPending}
-                onClick={handleAddToCart}
-                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:opacity-60"
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                {addMutation.isPending
-                  ? "Đang thêm…"
-                  : isOutOfStock
-                  ? "Hết hàng"
-                  : "Thêm vào giỏ hàng"}
-              </Button>
+              {isOutOfStock ? (
+                <div className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 py-3 text-sm font-semibold text-gray-400 select-none">
+                  <ShoppingCart className="h-4 w-4" />
+                  Tạm hết hàng
+                </div>
+              ) : (
+                <Button
+                  disabled={addMutation.isPending}
+                  onClick={handleAddToCart}
+                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold disabled:opacity-60"
+                >
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  {addMutation.isPending ? "Đang thêm…" : "Thêm vào giỏ hàng"}
+                </Button>
+              )}
             </div>
           )}
         </div>
