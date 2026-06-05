@@ -22,13 +22,15 @@ import {
   RefreshCw,
   Calendar,
   Loader2,
+  X,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useProfit, useSummary } from "@/hooks/useAnalytics";
+import { useProfit, useSummary, useVariantOrderLines } from "@/hooks/useAnalytics";
 import { formatVND } from "@/lib/formatVND";
-import type { VariantProfit } from "@/types/analytics";
+import type { VariantProfit, VariantOrderLine } from "@/types/analytics";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -126,6 +128,119 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
+// ─── Variant order lines modal ────────────────────────────────────────────────
+
+interface VariantOrderModalProps {
+  variant: VariantProfit;
+  from: string;
+  to: string;
+  onClose: () => void;
+}
+
+function VariantOrderModal({ variant, from, to, onClose }: VariantOrderModalProps) {
+  const { data: lines, isLoading } = useVariantOrderLines({
+    variantId: variant.variantId,
+    from,
+    to,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">{variant.variantName}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{from} → {to} · {variant.itemsSold} giao dịch</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Đang tải...</span>
+            </div>
+          ) : !lines || lines.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-16">Không có dữ liệu.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-5 py-3 text-left">Mã đơn</th>
+                  <th className="px-4 py-3 text-center">SL</th>
+                  <th className="px-4 py-3 text-right">Doanh thu</th>
+                  <th className="px-4 py-3 text-right">Chi phí</th>
+                  <th className="px-4 py-3 text-right">Lợi nhuận</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {lines.map((line, i) => {
+                  const margin = line.revenue > 0 ? (line.grossProfit / line.revenue) * 100 : 0;
+                  const isLoss = line.grossProfit < 0;
+                  return (
+                    <tr key={i} className={`hover:bg-gray-50 transition-colors ${isLoss ? "bg-red-50/40" : ""}`}>
+                      <td className="px-5 py-3">
+                        <span className="font-mono text-xs text-gray-700">{line.orderCode}</span>
+                        <span className="block text-[11px] text-gray-400">
+                          {new Date(line.orderedAt).toLocaleString("vi-VN")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">{line.quantity}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-cyan-700 tabular-nums">
+                        {formatVND(line.revenue)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                        {formatVND(line.cost)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        <span className={`font-semibold ${isLoss ? "text-red-500" : "text-emerald-600"}`}>
+                          {formatVND(line.grossProfit)}
+                        </span>
+                        {line.revenue > 0 && (
+                          <span className="ml-1 text-[11px] text-gray-400">
+                            ({margin.toFixed(1)}%)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {lines.length > 1 && (
+                <tfoot>
+                  <tr className="bg-gray-50 border-t border-gray-200 font-semibold text-sm">
+                    <td className="px-5 py-3 text-gray-700">Tổng cộng</td>
+                    <td className="px-4 py-3 text-center text-gray-700">
+                      {lines.reduce((s, l) => s + l.quantity, 0)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-cyan-700 tabular-nums">
+                      {formatVND(lines.reduce((s, l) => s + l.revenue, 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                      {formatVND(lines.reduce((s, l) => s + l.cost, 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <span className={lines.reduce((s, l) => s + l.grossProfit, 0) >= 0 ? "text-emerald-600" : "text-red-500"}>
+                        {formatVND(lines.reduce((s, l) => s + l.grossProfit, 0))}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminAnalyticsPage() {
@@ -133,6 +248,7 @@ export default function AdminAnalyticsPage() {
   const [to, setTo] = useState(defaultTo);
   const [appliedFrom, setAppliedFrom] = useState(defaultFrom);
   const [appliedTo, setAppliedTo] = useState(defaultTo);
+  const [selectedVariant, setSelectedVariant] = useState<VariantProfit | null>(null);
 
   function applyFilter() {
     setAppliedFrom(from);
@@ -172,6 +288,14 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-7">
+      {selectedVariant && (
+        <VariantOrderModal
+          variant={selectedVariant}
+          from={appliedFrom}
+          to={appliedTo}
+          onClose={() => setSelectedVariant(null)}
+        />
+      )}
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -280,7 +404,7 @@ export default function AdminAnalyticsPage() {
       {!profitError && (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-            Tổng quan lợi nhuận
+            Lợi nhuận
             {profitLoading && <Loader2 className="inline ml-2 h-3.5 w-3.5 animate-spin text-gray-400" />}
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -414,9 +538,14 @@ export default function AdminAnalyticsPage() {
                   tableRows.map((v) => {
                     const margin = v.revenue > 0 ? (v.grossProfit / v.revenue) * 100 : 0;
                     return (
-                      <tr key={v.variantId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-900">
+                      <tr
+                        key={v.variantId}
+                        onClick={() => setSelectedVariant(v)}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-1">
                           {v.variantName}
+                          <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-cyan-500 transition-colors" />
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-cyan-700 tabular-nums">
                           {formatVND(v.revenue)}

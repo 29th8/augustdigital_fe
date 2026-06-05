@@ -3,9 +3,10 @@ import { parseApiResponse } from "@/lib/parseApiResponse";
 import {
   RawProfitResponseSchema,
   RawSummaryResponseSchema,
+  RawVariantOrderLinesSchema,
 } from "@/schemas/analytics.schema";
 import type { ApiResponse } from "@/types/api";
-import type { ProfitResponse, SummaryResponse, ProfitParams } from "@/types/analytics";
+import type { ProfitResponse, SummaryResponse, ProfitParams, VariantOrderLine, VariantOrderLinesParams } from "@/types/analytics";
 
 // ─── Normalizers (snake_case → camelCase) ─────────────────────────────────────
 
@@ -63,6 +64,29 @@ export const AnalyticsService = {
     );
     const raw = parseApiResponse(RawProfitResponseSchema, res.data.data, "getProfit");
     return normalizeProfitResponse(raw);
+  },
+
+  /**
+   * GET /api/v1/admin/analytics/profit/variants/{variantId}/orders
+   * Per-order profit breakdown for a specific variant.
+   */
+  async getVariantOrderLines(params: VariantOrderLinesParams): Promise<VariantOrderLine[]> {
+    const res = await apiClient.get<ApiResponse<unknown>>(
+      `/api/v1/admin/analytics/profit/variants/${params.variantId}/orders`,
+      { params: { from: params.from, to: params.to } },
+    );
+    const raw = parseApiResponse(RawVariantOrderLinesSchema, res.data.data, "getVariantOrderLines");
+    return raw.map((r) => ({
+      orderCode: r.order_code,
+      orderedAt: r.ordered_at,
+      quantity: r.quantity,
+      unitPrice: r.unit_price,
+      unitCost: r.unit_cost,
+      effectivePrice: r.effective_price,
+      revenue: r.revenue,
+      cost: r.cost,
+      grossProfit: r.gross_profit,
+    }));
   },
 
   /**

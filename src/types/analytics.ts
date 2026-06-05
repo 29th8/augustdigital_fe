@@ -37,3 +37,21 @@ export interface ProfitParams {
   to: string;    // yyyy-MM-dd
   variantId?: number;
 }
+
+export interface VariantOrderLine {
+  orderCode: string;
+  orderedAt: string;
+  quantity: number;
+  unitPrice: number;
+  unitCost: number;
+  effectivePrice: number;
+  revenue: number;
+  cost: number;
+  grossProfit: number;
+}
+
+export interface VariantOrderLinesParams {
+  variantId: number;
+  from: string;
+  to: string;
+}

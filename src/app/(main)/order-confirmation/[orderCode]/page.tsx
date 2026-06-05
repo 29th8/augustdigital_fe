@@ -450,7 +450,13 @@ export default function OrderConfirmationPage({
         và email đã đăng ký.
       </p>
 
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-3">
+        <Button asChild variant="outline" size="sm" className="border-gray-200 text-gray-600">
+          <Link href={order.id ? `/orders/${order.id}` : `/orders/${orderCode}?email=${encodeURIComponent(email)}`}>
+            <Package className="mr-1.5 h-3.5 w-3.5" />
+            Xem chi tiết đơn hàng
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm" className="border-gray-200 text-gray-600">
           <Link href="/products">Tiếp tục mua sắm</Link>
         </Button>

@@ -36,5 +36,20 @@ export const RawSummaryResponseSchema = z.object({
   top_variants: z.array(RawTopVariantSchema).default([]),
 });
 
+export const RawVariantOrderLineSchema = z.object({
+  order_code: z.string(),
+  ordered_at: z.string(),
+  quantity: safeNum,
+  unit_price: safeNum,
+  unit_cost: safeNum,
+  effective_price: safeNum,
+  revenue: safeNum,
+  cost: safeNum,
+  gross_profit: safeNum,
+});
+
+export const RawVariantOrderLinesSchema = z.array(RawVariantOrderLineSchema).default([]);
+
 export type RawProfitResponse = z.infer<typeof RawProfitResponseSchema>;
 export type RawSummaryResponse = z.infer<typeof RawSummaryResponseSchema>;
+export type RawVariantOrderLine = z.infer<typeof RawVariantOrderLineSchema>;

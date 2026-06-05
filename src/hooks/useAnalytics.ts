@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AnalyticsService } from "@/services/analytics.service";
-import type { ProfitParams } from "@/types/analytics";
+import type { ProfitParams, VariantOrderLinesParams } from "@/types/analytics";
 
 const ANALYTICS_STALE = 60_000; // 1 minute
 
@@ -22,5 +22,15 @@ export function useSummary() {
     queryFn: () => AnalyticsService.getSummary(),
     staleTime: ANALYTICS_STALE,
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useVariantOrderLines(params: VariantOrderLinesParams | null) {
+  return useQuery({
+    queryKey: ["analytics-variant-orders", params?.variantId, params?.from, params?.to],
+    queryFn: () => AnalyticsService.getVariantOrderLines(params!),
+    staleTime: ANALYTICS_STALE,
+    refetchOnWindowFocus: false,
+    enabled: params !== null,
   });
 }
