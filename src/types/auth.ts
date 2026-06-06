@@ -9,6 +9,7 @@ export interface UserProfile {
   id: number;
   email: string;
   role: UserRole;
+  phone: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,4 +22,5 @@ export interface LoginCredentials {
 export interface RegisterData {
   email: string;
   password: string;
+  phone: string;
 }

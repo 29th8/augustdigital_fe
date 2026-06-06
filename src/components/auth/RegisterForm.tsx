@@ -37,6 +37,24 @@ export default function RegisterForm() {
       </div>
 
       <div className="space-y-1.5">
+        <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+          Số điện thoại
+        </Label>
+        <Input
+          id="phone"
+          type="tel"
+          autoComplete="tel"
+          placeholder="0901234567"
+          {...register("phone")}
+          aria-invalid={!!errors.phone}
+          className={INPUT_CLASS}
+        />
+        {errors.phone && (
+          <p className="text-xs text-red-500">{errors.phone.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
         <Label htmlFor="password" className="text-sm font-medium text-gray-700">
           Mật khẩu
         </Label>

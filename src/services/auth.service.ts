@@ -19,7 +19,7 @@ const AuthService = {
   async register(data: RegisterData): Promise<AuthTokenResponse> {
     const res = await apiClient.post<ApiResponse<AuthTokenResponse>>(
       "/api/v1/auth/register",
-      { email: data.email, password: data.password }
+      { email: data.email, password: data.password, phone: data.phone }
     );
     return res.data.data;
   },

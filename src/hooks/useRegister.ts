@@ -13,6 +13,7 @@ import { ApiErrorResponse } from "@/types/api";
 const registerSchema = z
   .object({
     email: z.string().email("Vui lòng nhập địa chỉ email hợp lệ."),
+    phone: z.string().min(9, "Số điện thoại không hợp lệ.").max(15, "Số điện thoại không hợp lệ."),
     password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự."),
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu."),
   })
@@ -36,6 +37,7 @@ export function useRegister() {
       const { accessToken } = await AuthService.register({
         email: values.email,
         password: values.password,
+        phone: values.phone,
       });
       const user = await AuthService.getMe(accessToken);
       setAuth(accessToken, user);

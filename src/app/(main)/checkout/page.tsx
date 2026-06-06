@@ -78,7 +78,7 @@ export default function CheckoutPage() {
     resolver: zodResolver(CheckoutSchema),
     defaultValues: {
       email: user?.email ?? "",
-      phone: "",
+      phone: user?.phone ?? "",
       discountCode: "",
     },
   });
