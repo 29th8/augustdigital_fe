@@ -92,13 +92,10 @@ function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 6 }).map((_, i) => (
-        <tr key={i} className="border-b border-gray-100">
-          {[32, 20, 24, 48, 28, 24, 28, 24, 20].map((w, j) => (
-            <td key={j} className="px-4 py-3.5">
-              <div
-                className={`h-4 bg-gray-100 rounded animate-pulse`}
-                style={{ width: `${w * 4}px` }}
-              />
+        <tr key={i} className="border-b border-gray-50 last:border-0" style={{ opacity: 1 - i * 0.12 }}>
+          {[28, 12, 18, 44, 14, 20, 22, 18, 10].map((w, j) => (
+            <td key={j} className="px-4 py-4">
+              <div className="h-3.5 bg-gray-100 rounded-full animate-pulse" style={{ width: `${w + Math.random() * 10}%` }} />
             </td>
           ))}
         </tr>
@@ -240,14 +237,14 @@ export function DiscountTable({
   onCreateNew,
   deletingId,
 }: DiscountTableProps) {
-  const TH = "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap";
+  const TH = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 whitespace-nowrap";
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className={cn("bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-opacity", isFetching && !isLoading && "opacity-60")}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50/70">
+            <tr className="border-b border-gray-100 bg-gray-50/80">
               <th className={TH}>Mã Voucher</th>
               <th className={TH}>Loại</th>
               <th className={TH}>Giá trị</th>
@@ -260,7 +257,7 @@ export function DiscountTable({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {isLoading || (isFetching && items.length === 0) ? (
               <TableSkeleton />
             ) : items.length === 0 ? (
@@ -274,7 +271,7 @@ export function DiscountTable({
                 </td>
               </tr>
             ) : (
-              items.map((d) => {
+              items.map((d, idx) => {
                 const status = getDiscountStatus(d);
                 const isExpiringSoon =
                   status === "ACTIVE" && msUntilExpiry(d) !== null;
@@ -283,14 +280,18 @@ export function DiscountTable({
                   <tr
                     key={d.id}
                     className={cn(
-                      "hover:bg-gray-50/50 transition-colors group",
-                      isExpiringSoon && "bg-red-50/30",
+                      "border-b border-gray-50 last:border-0 transition-colors group",
+                      isExpiringSoon
+                        ? "bg-red-50/30 hover:bg-red-50/50"
+                        : idx % 2 === 1
+                        ? "bg-gray-50/30 hover:bg-sky-50/30"
+                        : "hover:bg-sky-50/20",
                     )}
                   >
                     {/* Code */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold text-gray-900 tracking-wider text-sm">
+                        <span className="inline-flex items-center font-mono text-[11px] font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg tracking-wide whitespace-nowrap">
                           {d.code}
                         </span>
                         <ExpiryCountdown discount={d} />
@@ -298,7 +299,7 @@ export function DiscountTable({
                     </td>
 
                     {/* Type */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span
                         className={cn(
                           "inline-flex rounded px-2 py-0.5 text-xs font-semibold",
@@ -312,7 +313,7 @@ export function DiscountTable({
                     </td>
 
                     {/* Value */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span className="font-semibold text-gray-900">
                         {formatValue(d.type, d.value)}
                       </span>
@@ -329,7 +330,7 @@ export function DiscountTable({
                     </td>
 
                     {/* Remaining */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span
                         className={cn(
                           "text-sm font-medium",
@@ -345,12 +346,12 @@ export function DiscountTable({
                     </td>
 
                     {/* Status */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <DiscountStatusBadge status={status} />
                     </td>
 
                     {/* Expired at */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span
                         className={cn(
                           "text-xs",
@@ -362,12 +363,12 @@ export function DiscountTable({
                     </td>
 
                     {/* Created at */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span className="text-xs text-gray-400">{formatDate(d.createdAt)}</span>
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <RowActions
                         discount={d}
                         onEdit={onEdit}
