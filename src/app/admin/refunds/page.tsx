@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCcw, RefreshCw } from "lucide-react";
+import { RefreshCcw, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RefundFilters from "@/components/admin/refunds/RefundFilters";
 import RefundTable from "@/components/admin/refunds/RefundTable";
@@ -13,6 +13,82 @@ import type { Refund, RefundStatus } from "@/types/refund";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
+
+// ─── PaginationBar ────────────────────────────────────────────────────────────
+
+function PaginationBar({
+  currentPage,
+  totalPages,
+  totalElements,
+  pageSize,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalElements: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const from = currentPage * pageSize + 1;
+  const to = Math.min((currentPage + 1) * pageSize, totalElements);
+
+  function getPages(): (number | "...")[] {
+    const pages: (number | "...")[] = [];
+    const left = currentPage - 1;
+    const right = currentPage + 1;
+    for (let i = 0; i < totalPages; i++) {
+      if (i === 0 || i === totalPages - 1 || (i >= left && i <= right)) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "...") {
+        pages.push("...");
+      }
+    }
+    return pages;
+  }
+
+  return (
+    <div className="flex items-center justify-between px-1 py-3">
+      <p className="text-xs text-gray-400">
+        {from}–{to} / <span className="font-medium text-gray-600">{totalElements}</span> kết quả
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={currentPage === 0}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        {getPages().map((p, i) =>
+          p === "..." ? (
+            <span key={`e-${i}`} className="h-7 w-7 flex items-center justify-center text-xs text-gray-300">···</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPageChange(p as number)}
+              className={`h-7 w-7 flex items-center justify-center rounded-lg text-xs font-medium transition-colors ${
+                p === currentPage ? "bg-sky-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              }`}
+            >
+              {(p as number) + 1}
+            </button>
+          )
+        )}
+        <button
+          type="button"
+          disabled={currentPage >= totalPages - 1}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,35 +229,13 @@ export default function AdminRefundsPage() {
         )}
 
         {/* Pagination */}
-        {totalElements > 0 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Trang {page + 1}
-              {totalPages > 1 ? ` / ${totalPages}` : ""}{" "}
-              &nbsp;&middot;&nbsp; {totalElements} yêu cầu
-            </p>
-            {totalPages > 1 && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Trước
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Tiếp
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+        <PaginationBar
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </>
   );

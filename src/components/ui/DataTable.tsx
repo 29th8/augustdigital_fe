@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertCircle, InboxIcon } from "lucide-react";
+import { AlertCircle, InboxIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TableColumn<T> {
@@ -27,6 +27,91 @@ interface DataTableProps<T> {
   /** Wrap in a white card with border. Default: true */
   card?: boolean;
   onRowClick?: (row: T) => void;
+  pageInfo?: {
+    total_elements: number;
+    total_pages: number;
+    current_page: number; // 0-based
+    page_size: number;
+  };
+  onPageChange?: (page: number) => void; // 0-based
+}
+
+function Pagination({
+  pageInfo,
+  onPageChange,
+}: {
+  pageInfo: NonNullable<DataTableProps<unknown>["pageInfo"]>;
+  onPageChange: (page: number) => void;
+}) {
+  const { current_page, total_pages, total_elements, page_size } = pageInfo;
+  if (total_pages <= 1) return null;
+
+  const from = current_page * page_size + 1;
+  const to = Math.min((current_page + 1) * page_size, total_elements);
+
+  // Build page numbers with ellipsis
+  function getPages(): (number | "...")[] {
+    const pages: (number | "...")[] = [];
+    const delta = 1;
+    const left = current_page - delta;
+    const right = current_page + delta;
+
+    for (let i = 0; i < total_pages; i++) {
+      if (i === 0 || i === total_pages - 1 || (i >= left && i <= right)) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "...") {
+        pages.push("...");
+      }
+    }
+    return pages;
+  }
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+      <p className="text-xs text-gray-400">
+        {from}–{to} / <span className="font-medium text-gray-600">{total_elements}</span> kết quả
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={current_page === 0}
+          onClick={() => onPageChange(current_page - 1)}
+          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        {getPages().map((p, i) =>
+          p === "..." ? (
+            <span key={`ellipsis-${i}`} className="h-7 w-7 flex items-center justify-center text-xs text-gray-300">
+              ···
+            </span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPageChange(p as number)}
+              className={cn(
+                "h-7 w-7 flex items-center justify-center rounded-lg text-xs font-medium transition-colors",
+                p === current_page
+                  ? "bg-sky-600 text-white shadow-sm"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              )}
+            >
+              {(p as number) + 1}
+            </button>
+          )
+        )}
+        <button
+          type="button"
+          disabled={current_page >= total_pages - 1}
+          onClick={() => onPageChange(current_page + 1)}
+          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const TH_BASE =
@@ -45,6 +130,8 @@ export function DataTable<T>({
   skeletonRows = 5,
   card = true,
   onRowClick,
+  pageInfo,
+  onPageChange,
 }: DataTableProps<T>) {
   const wrapper = card
     ? "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
@@ -128,6 +215,9 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+      {pageInfo && onPageChange && (
+        <Pagination pageInfo={pageInfo} onPageChange={onPageChange} />
+      )}
     </div>
   );
 }
