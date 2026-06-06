@@ -5,7 +5,8 @@ import type { ApiResponse } from "@/types/api";
 import type { PaymentMethod } from "@/schemas/payment.schema";
 
 export interface CreatePaymentResult {
-  paymentUrl: string;
+  paymentUrl?: string;
+  qrCode?: string;
   orderCode: string;
   amount: number;
   method: PaymentMethod;
@@ -24,6 +25,7 @@ export const PaymentService = {
     const raw = parseApiResponse(RawPaymentResponseSchema, res.data.data, "createPayment");
     return {
       paymentUrl: raw.payment_url,
+      qrCode: raw.qr_code,
       orderCode: raw.order_code,
       amount: raw.amount,
       method: raw.method,

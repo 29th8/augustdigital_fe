@@ -10,6 +10,16 @@ import { TOAST } from "@/lib/toastMessages";
 import type { ApiErrorResponse } from "@/types/api";
 import type { Cart } from "@/types/cart";
 
+// ─── Stock error translator ───────────────────────────────────────────────────
+
+function translateStockError(message: string): string {
+  const match = message.match(/Available:\s*(\d+)/i);
+  const available = match ? parseInt(match[1], 10) : null;
+  if (available === 0) return "Sản phẩm này đã hết hàng.";
+  if (available !== null) return `Chỉ còn ${available} sản phẩm trong kho.`;
+  return "Số lượng yêu cầu vượt quá tồn kho hiện có.";
+}
+
 // ─── Network resilience helper ────────────────────────────────────────────────
 // Retry on 5xx (server error) or code === 500 when there's no response (network
 // error). Do NOT retry on 4xx — those are caller faults that won't self-heal.
@@ -28,7 +38,7 @@ export function useCartMutations() {
     queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
 
   /** Publish cart update to other tabs after a successful mutation. */
-  function broadcastCart(cart: Cart) {
+  function broadcastCart(cart: Cart): void {
     getAppChannel().post({ type: "CART_UPDATED", cart });
   }
 
@@ -49,16 +59,17 @@ export function useCartMutations() {
       openCart();
     },
     onError: (err) => {
-      // Stock errors (400 + "Insufficient stock") are handled by the caller
-      // with proper Vietnamese UX — skip the generic toast to avoid duplicates.
-      if (err.code === 400 && err.message?.includes("Insufficient stock")) return;
-      toast.error(err?.message ?? TOAST.CART_ADD_ERROR);
+      const msg = err?.message ?? "";
+      // Stock errors from the product page are handled by the per-call onError
+      // with context-specific UX (updates stock badge, etc.) — skip generic toast.
+      if (err.code === 400 && msg.includes("Insufficient stock")) return;
+      toast.error(msg || TOAST.CART_ADD_ERROR);
     },
   });
 
   // ── Update quantity ───────────────────────────────────────────────────────
   const updateMutation = useMutation<
-    Cart,
+    void,
     ApiErrorResponse,
     { variantId: number; quantity: number }
   >({
@@ -66,13 +77,17 @@ export function useCartMutations() {
       CartService.updateCartItem(variantId, quantity),
     retry: shouldRetry,
     retryDelay: 1000,
-    onSuccess: (updatedCart) => {
-      queryClient.setQueryData(CART_QUERY_KEY, updatedCart);
-      broadcastCart(updatedCart);
+    onSuccess: () => {
+      invalidate();
     },
     onError: (err) => {
-      toast.error(err?.message ?? TOAST.CART_UPDATE_ERROR);
-      invalidate(); // revert optimistic display to server truth
+      const msg = err?.message ?? "";
+      if (err?.code === 400 && msg.includes("Insufficient stock")) {
+        toast.error(translateStockError(msg));
+      } else {
+        toast.error(msg || TOAST.CART_UPDATE_ERROR);
+      }
+      invalidate();
     },
   });
 

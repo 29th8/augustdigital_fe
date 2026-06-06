@@ -42,7 +42,11 @@ export default function ProductFilter({ params, categories = [], onFilter }: Pro
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearch(val);
+            if (val === "") onFilter({ keyword: undefined });
+          }}
           placeholder="Tìm kiếm sản phẩm…"
           className="pl-9 pr-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-cyan-500"
         />

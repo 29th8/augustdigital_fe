@@ -97,24 +97,59 @@ export const InventoryService = {
         pinCode:       z.string().nullable(),
         maxSlots:      z.number().default(1),
         assignedSlots: z.number().default(0),
-        status:        z.enum(["AVAILABLE", "ASSIGNED"]),
+        status:        z.enum(["AVAILABLE", "ASSIGNED", "IN_USE"]),
       }),
     );
-    const schema = z.array(
+    const itemSchema = z.preprocess(
+      (raw) => {
+        if (typeof raw !== "object" || raw === null) return raw;
+        const o = raw as Record<string, unknown>;
+        return {
+          id:           o.id,
+          type:         o.type,
+          value:        o.value,
+          status:       o.status,
+          profileCount: o.profileCount ?? o.profile_count ?? 0,
+          usedSlots:    o.usedSlots    ?? o.used_slots    ?? 0,
+          profiles:     o.profiles     ?? [],
+        };
+      },
       z.object({
         id:           z.number(),
         type:         z.enum(["KEY", "ACCOUNT"]),
-        value:        z.string(),
-        status:       z.enum(["AVAILABLE", "IN_USE", "SOLD"]),
+        value:        z.string().nullable(),
+        status:       z.enum(["AVAILABLE", "IN_USE", "SOLD", "REVOKED"]),
         profileCount: z.number().default(0),
         usedSlots:    z.number().default(0),
         profiles:     z.array(profileSchema).default([]),
       }),
     );
+    const schema = z.array(itemSchema);
     const res = await apiClient.get<ApiResponse<unknown>>(
       `/api/v1/admin/inventory/${variantId}/items`,
     );
+    if (res.data.code !== 200) {
+      throw new Error(res.data.message ?? "Không thể tải danh sách hàng");
+    }
     return parseApiResponse(schema, res.data.data, "listItems") as InventoryItemDetail[];
+  },
+
+  /**
+   * POST /api/v1/admin/inventory/re-encrypt
+   * Migrates plaintext inventory values to encrypted format.
+   * Idempotent — safe to run multiple times.
+   */
+  async reEncrypt(): Promise<{ items_fixed: number; items_skipped: number; pins_fixed: number; pins_skipped: number; total_items: number; total_pins: number }> {
+    const schema = z.object({
+      items_fixed:   z.number(),
+      items_skipped: z.number(),
+      pins_fixed:    z.number(),
+      pins_skipped:  z.number(),
+      total_items:   z.number(),
+      total_pins:    z.number(),
+    });
+    const res = await apiClient.post<ApiResponse<unknown>>("/api/v1/admin/inventory/re-encrypt");
+    return parseApiResponse(schema, res.data.data, "reEncrypt");
   },
 
   /**

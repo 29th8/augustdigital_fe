@@ -17,7 +17,8 @@ import type { OrderStatus } from "@/types/order";
 export type AppChannelMessage =
   | { type: "CART_UPDATED"; cart: Cart }
   | { type: "LOGGED_OUT" }
-  | { type: "ORDER_STATUS"; orderCode: string; status: OrderStatus };
+  | { type: "ORDER_STATUS"; orderCode: string; status: OrderStatus }
+  | { type: "NOTIFICATIONS_READ" };
 
 // ─── Channel implementation ───────────────────────────────────────────────────
 

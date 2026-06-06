@@ -35,7 +35,7 @@ function parseCart(data: unknown, context: string): Cart {
     const valid = validateSafe(RawCartItemSchema, rawItem, "cartItem");
     if (valid !== null) items.push(normalizeCartItem(valid));
   }
-  return { items, totalAmount: rawCart.total_amount ?? rawCart.totalAmount ?? 0 };
+  return { items, totalAmount: rawCart.total_amount ?? 0 };
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -58,13 +58,13 @@ export const CartService = {
     parseApiResponse(EmptyResponseSchema, res.data, "addToCart");
   },
 
-  async updateCartItem(variantId: number, quantity: number): Promise<Cart> {
-    const res = await apiClient.put<ApiResponse<unknown>>(
+  async updateCartItem(variantId: number, quantity: number): Promise<void> {
+    const res = await apiClient.put<unknown>(
       `/api/v1/cart/${variantId}`,
       { quantity },
       { headers: sessionHeader() },
     );
-    return parseCart(res.data.data, "updateCart");
+    parseApiResponse(EmptyResponseSchema, res.data, "updateCart");
   },
 
   async removeFromCart(variantId: number): Promise<void> {

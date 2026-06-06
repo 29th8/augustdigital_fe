@@ -36,8 +36,8 @@ export interface ImportProfilesPayload {
   profiles: ProfileInput[];
 }
 
-export type InventoryItemStatus = "AVAILABLE" | "IN_USE" | "SOLD";
-export type ProfileStatus = "AVAILABLE" | "ASSIGNED";
+export type InventoryItemStatus = "AVAILABLE" | "IN_USE" | "SOLD" | "REVOKED";
+export type ProfileStatus = "AVAILABLE" | "ASSIGNED" | "IN_USE";
 
 export interface AccountProfile {
   id: number;
@@ -51,7 +51,7 @@ export interface AccountProfile {
 export interface InventoryItemDetail {
   id: number;
   type: InventoryItemType;
-  value: string;
+  value: string | null;
   status: InventoryItemStatus;
   profileCount: number;
   usedSlots: number;

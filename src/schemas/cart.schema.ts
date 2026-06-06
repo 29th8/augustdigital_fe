@@ -16,11 +16,20 @@ export const RawCartItemSchema = z.object({
 });
 
 // Cart envelope — total_amount is snake_case per API docs
-export const RawCartSchema = z.object({
-  items: z.array(z.unknown()),
-  total_amount: z.number().optional(),
-  totalAmount: z.number().optional(),
-});
+export const RawCartSchema = z.preprocess(
+  (raw) => {
+    if (typeof raw !== "object" || raw === null) return raw;
+    const obj = raw as Record<string, unknown>;
+    return {
+      items: obj.items ?? obj.cartItems ?? [],
+      total_amount: obj.total_amount ?? obj.totalAmount,
+    };
+  },
+  z.object({
+    items: z.array(z.unknown()).default([]),
+    total_amount: z.number().optional(),
+  }),
+);
 
 export type RawCartItem = z.infer<typeof RawCartItemSchema>;
 export type RawCart = z.infer<typeof RawCartSchema>;

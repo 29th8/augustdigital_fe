@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -36,6 +35,7 @@ import useAuthStore from "@/store/useAuthStore";
 import { useCartItemCount } from "@/hooks/useCart";
 import { useCartStore } from "@/store/useCartStore";
 import { cn } from "@/lib/utils";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 const NAV_LINKS = [
   { label: "Trang chủ", href: "/" },
@@ -43,9 +43,6 @@ const NAV_LINKS = [
   { label: "Đơn hàng", href: "/orders" },
   { label: "Bảo hành", href: "/warranty" },
 ] as const;
-
-// Stub: wire to a real notification hook in a future phase
-const NOTIFICATION_COUNT = 0;
 
 function getInitials(email: string): string {
   return email.slice(0, 2).toUpperCase();
@@ -120,17 +117,7 @@ export default function Header() {
           {isAuthenticated && user ? (
             <>
               {/* Notification bell */}
-              <button
-                aria-label="Thông báo"
-                className="relative p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-              >
-                <Bell className="h-4 w-4" />
-                {NOTIFICATION_COUNT > 0 && (
-                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[9px] font-bold text-white">
-                    {NOTIFICATION_COUNT > 9 ? "9+" : NOTIFICATION_COUNT}
-                  </span>
-                )}
-              </button>
+              <NotificationBell />
 
               {/* User dropdown */}
               <DropdownMenu>
@@ -175,9 +162,9 @@ export default function Header() {
                   )}
 
                   <DropdownMenuItem asChild className="text-gray-700 focus:text-gray-900 focus:bg-gray-50 cursor-pointer">
-                    <Link href="/dashboard">
+                    <Link href="/profile">
                       <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Trang cá nhân
+                      Hồ sơ
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="text-gray-700 focus:text-gray-900 focus:bg-gray-50 cursor-pointer">

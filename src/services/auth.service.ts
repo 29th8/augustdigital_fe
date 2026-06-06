@@ -33,6 +33,13 @@ const AuthService = {
     );
     return res.data.data;
   },
+
+  // Uses the default Authorization header set by the apiClient interceptor.
+  // Call this when the token is already in the store (e.g. profile page).
+  async getProfile(signal?: AbortSignal): Promise<UserProfile> {
+    const res = await apiClient.get<ApiResponse<UserProfile>>("/api/v1/auth/me", { signal });
+    return res.data.data;
+  },
 };
 
 export default AuthService;
