@@ -342,6 +342,9 @@ export default function AdminInventoryPage() {
   const lowStockCount = (data?.items ?? []).filter(p =>
     p.variants.some(v => { const s = v.stock ?? 0; return s > 0 && s <= LOW_STOCK; })
   ).length;
+  const outOfStockCount = (data?.items ?? []).filter(p =>
+    p.variants.every(v => (v.stock ?? 0) === 0)
+  ).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -387,7 +390,7 @@ export default function AdminInventoryPage() {
 
       {/* Stats row */}
       {!isLoading && !isError && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
             <p className="text-[11px] text-gray-400 uppercase tracking-wide">Tổng sản phẩm</p>
             <p className="text-2xl font-bold text-gray-900 mt-0.5">{totalProducts}</p>
@@ -395,6 +398,10 @@ export default function AdminInventoryPage() {
           <div className="bg-white rounded-xl border border-amber-100 px-4 py-3 shadow-sm">
             <p className="text-[11px] text-amber-500 uppercase tracking-wide">Sắp hết hàng</p>
             <p className="text-2xl font-bold text-amber-500 mt-0.5">{lowStockCount}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-red-100 px-4 py-3 shadow-sm">
+            <p className="text-[11px] text-red-400 uppercase tracking-wide">Hết hàng</p>
+            <p className="text-2xl font-bold text-red-500 mt-0.5">{outOfStockCount}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm hidden sm:block">
             <p className="text-[11px] text-gray-400 uppercase tracking-wide">Hiển thị</p>
