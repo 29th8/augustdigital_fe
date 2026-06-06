@@ -12,6 +12,8 @@ import {
   ChevronRight,
   X,
   Calendar,
+  ArrowRight,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,10 +175,10 @@ function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 8 }).map((_, i) => (
-        <tr key={i} className="animate-pulse">
-          {Array.from({ length: 6 }).map((__, j) => (
-            <td key={j} className="px-4 py-3">
-              <div className="h-3 bg-gray-100 rounded w-full" />
+        <tr key={i} className="border-b border-gray-50 last:border-0" style={{ opacity: 1 - i * 0.1 }}>
+          {[32, 56, 20, 28, 24, 12].map((w, j) => (
+            <td key={j} className="px-4 py-4">
+              <div className={`h-3.5 bg-gray-100 rounded-full animate-pulse`} style={{ width: `${w + Math.random() * 20}%` }} />
             </td>
           ))}
         </tr>
@@ -327,8 +329,13 @@ function AdminOrdersContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quản lý đơn hàng</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+              <div className="p-2 bg-sky-50 rounded-xl">
+                <ShoppingBag className="h-5 w-5 text-sky-600" />
+              </div>
+              Đơn hàng
+            </h1>
+            <p className="text-sm text-gray-400 mt-1 ml-0.5">
               {totalElements > 0
                 ? `${totalElements.toLocaleString("vi-VN")} đơn hàng`
                 : "Tất cả đơn hàng"}
@@ -336,11 +343,12 @@ function AdminOrdersContent() {
           </div>
           <div className="flex items-center gap-2">
             {isFetching && !isLoading && (
-              <RefreshCw className="h-4 w-4 text-blue-400 animate-spin" />
+              <RefreshCw className="h-4 w-4 text-sky-400 animate-spin" />
             )}
             <Button
               variant="outline"
               size="sm"
+              className="h-9 border-gray-200 text-gray-500 hover:text-gray-700"
               onClick={() => exportCsv(orders)}
               disabled={orders.length === 0}
             >
@@ -462,51 +470,46 @@ function AdminOrdersContent() {
         {/* Table */}
         <div
           className={cn(
-            "rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden transition-opacity",
-            isFetching && !isLoading && "opacity-70",
+            "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-opacity",
+            isFetching && !isLoading && "opacity-60",
           )}
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] table-fixed text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/80">
                   {(
                     [
-                      { label: "Mã đơn", cls: "w-36" },
+                      { label: "Mã đơn", cls: "w-44" },
                       { label: "Khách hàng", cls: "" },
                       { label: "Tổng tiền", cls: "w-32" },
                       { label: "Trạng thái", cls: "w-44" },
                       { label: "Ngày đặt", cls: "w-40" },
-                      { label: "", cls: "w-20" },
+                      { label: "", cls: "w-16" },
                     ] as { label: string; cls: string }[]
                   ).map(({ label, cls }) => (
                     <th
                       key={label || "__action"}
-                      className={`${cls} px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide`}
+                      className={`${cls} px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider`}
                     >
                       {label}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {isLoading ? (
                   <TableSkeleton />
                 ) : isError ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <ShoppingBag
-                          className={cn(
-                            "h-8 w-8",
-                            isFetching ? "text-blue-300 animate-pulse" : "text-gray-200",
-                          )}
-                        />
+                        <div className="p-4 bg-gray-50 rounded-2xl">
+                          <ShoppingBag className="h-7 w-7 text-gray-200" />
+                        </div>
                         <p className="text-sm text-gray-500">Không thể tải đơn hàng.</p>
                         {!isFetching && (
-                          <Button variant="outline" size="sm" onClick={() => refetch()}>
-                            Thử lại
-                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => refetch()}>Thử lại</Button>
                         )}
                       </div>
                     </td>
@@ -515,60 +518,81 @@ function AdminOrdersContent() {
                   <tr>
                     <td colSpan={6} className="px-4 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <ShoppingBag className="h-8 w-8 text-gray-200" />
+                        <div className="p-4 bg-gray-50 rounded-2xl">
+                          <ShoppingBag className="h-7 w-7 text-gray-200" />
+                        </div>
                         <p className="text-sm text-gray-400">
-                          {hasActiveFilters
-                            ? "Không tìm thấy đơn hàng nào phù hợp."
-                            : "Không có đơn hàng nào."}
+                          {hasActiveFilters ? "Không tìm thấy đơn hàng phù hợp." : "Chưa có đơn hàng nào."}
                         </p>
                         {hasActiveFilters && (
-                          <Button variant="outline" size="sm" onClick={handleClearFilters}>
-                            Xóa bộ lọc
-                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleClearFilters}>Xóa bộ lọc</Button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  orders.map((order) => (
+                  orders.map((order, idx) => (
                     <tr
                       key={order.id}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      className={cn(
+                        "border-b border-gray-50 last:border-0 cursor-pointer transition-colors group",
+                        idx % 2 === 1 ? "bg-gray-50/30 hover:bg-sky-50/30" : "hover:bg-sky-50/30"
+                      )}
                       onClick={() => setSelectedOrderId(order.id)}
                     >
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs font-semibold text-gray-900 whitespace-nowrap">
+                      {/* Order code */}
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center font-mono text-[11px] font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg tracking-wide whitespace-nowrap">
                           {order.orderCode}
                         </span>
                       </td>
-                      <td className="px-4 py-3 min-w-0">
-                        <span className="text-sm text-gray-700 truncate block">{order.email}</span>
+
+                      {/* Customer */}
+                      <td className="px-4 py-4 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
+                            <Mail className="h-3 w-3 text-sky-500" />
+                          </div>
+                          <span className="text-sm text-gray-700 truncate">{order.email}</span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+
+                      {/* Amount */}
+                      <td className="px-4 py-4">
+                        <span className={cn(
+                          "text-sm font-bold whitespace-nowrap",
+                          order.totalAmount > 0 ? "text-gray-900" : "text-gray-400"
+                        )}>
                           {formatVND(order.totalAmount)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+
+                      {/* Status */}
+                      <td className="px-4 py-4">
                         <OrderStatusBadge status={order.status} />
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-400 whitespace-nowrap">
-                          {formatDate(order.createdAt)}
-                        </span>
+
+                      {/* Date */}
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                            {new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(order.createdAt))}
+                          </span>
+                          <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                            {new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(order.createdAt))}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOrderId(order.id);
-                          }}
+
+                      {/* Action */}
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          type="button"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center text-gray-300 group-hover:text-sky-500 group-hover:bg-sky-50 transition-colors ml-auto"
+                          onClick={(e) => { e.stopPropagation(); setSelectedOrderId(order.id); }}
                         >
-                          Chi tiết
-                        </Button>
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   ))
