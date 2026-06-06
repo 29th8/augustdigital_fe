@@ -63,6 +63,7 @@ export default function AdminShell({ children }: AdminShellProps) {
         className={cn(
           // Hide on mobile; flex on md+
           "hidden md:flex shrink-0 flex-col",
+          "sticky top-0 h-screen",
           "border-r border-gray-100 bg-white",
           // Width transition — GPU-composited, no layout thrashing
           "transition-[width] duration-300 ease-in-out",
