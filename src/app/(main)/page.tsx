@@ -74,8 +74,8 @@ function ProductSkeleton() {
 
 export default function Home() {
   const { data, isLoading } = useQuery({
-    queryKey: ["products-home"],
-    queryFn: () => ProductService.getProducts({ page: 0, limit: 6 }),
+    queryKey: ["products-home-newest"],
+    queryFn: () => ProductService.getProducts({ page: 0, limit: 6, sort: "newest" }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -170,8 +170,8 @@ export default function Home() {
       <section className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Sản phẩm nổi bật</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Các sản phẩm được mua nhiều nhất.</p>
+            <h2 className="text-xl font-bold text-gray-900">Sản phẩm mới nhất</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Những sản phẩm vừa được thêm vào cửa hàng.</p>
           </div>
           <Button
             asChild
