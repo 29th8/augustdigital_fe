@@ -40,6 +40,11 @@ const AuthService = {
     const res = await apiClient.get<ApiResponse<UserProfile>>("/api/v1/auth/me", { signal });
     return res.data.data;
   },
+
+  async updateProfile(data: { phone: string }): Promise<UserProfile> {
+    const res = await apiClient.patch<ApiResponse<UserProfile>>("/api/v1/auth/me", data);
+    return res.data.data;
+  },
 };
 
 export default AuthService;

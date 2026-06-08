@@ -11,6 +11,7 @@ interface AuthState {
 
 interface AuthActions {
   setAuth: (token: string, user: UserProfile) => void;
+  updateUser: (user: UserProfile) => void;
   logout: () => void;
 }
 
@@ -38,6 +39,10 @@ const useAuthStore = create<AuthState & AuthActions>()(
         setAuthCookie(token);
         setRoleCookie(user.role); // lets proxy enforce /admin without JWT decode
         set({ token, user, isAuthenticated: true });
+      },
+
+      updateUser: (user) => {
+        set({ user });
       },
 
       logout: () => {

@@ -1,6 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Mail,
   ShieldCheck,
@@ -10,8 +14,21 @@ import {
   Hash,
   Clock,
   Sparkles,
+  Phone,
+  Pencil,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import AuthService from "@/services/auth.service";
 import useAuthStore from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
@@ -64,6 +81,128 @@ function getGradient(email: string, type: "avatar" | "cover"): string {
   return type === "avatar" ? AVATAR_GRADIENTS[idx] : COVER_GRADIENTS[idx];
 }
 
+// ─── Edit profile schema ───────────────────────────────────────────────────────
+
+const EditProfileSchema = z.object({
+  phone: z
+    .string()
+    .min(9, "Số điện thoại không hợp lệ.")
+    .max(15, "Số điện thoại không hợp lệ."),
+});
+type EditProfileValues = z.infer<typeof EditProfileSchema>;
+
+// ─── Edit dialog ──────────────────────────────────────────────────────────────
+
+function EditProfileDialog({
+  open,
+  onClose,
+  profile,
+}: {
+  open: boolean;
+  onClose: () => void;
+  profile: UserProfile;
+}) {
+  const queryClient = useQueryClient();
+  const updateUser = useAuthStore((s) => s.updateUser);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+  } = useForm<EditProfileValues>({
+    resolver: zodResolver(EditProfileSchema),
+    defaultValues: { phone: profile.phone ?? "" },
+  });
+
+  async function onSubmit(values: EditProfileValues) {
+    try {
+      const updated = await AuthService.updateProfile({ phone: values.phone });
+      updateUser(updated);
+      queryClient.setQueryData<UserProfile>(["profile"], updated);
+      toast.success("Cập nhật hồ sơ thành công.");
+      onClose();
+    } catch {
+      toast.error("Không thể cập nhật hồ sơ. Vui lòng thử lại.");
+    }
+  }
+
+  function handleClose() {
+    reset({ phone: profile.phone ?? "" });
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-gray-900">
+            Chỉnh sửa hồ sơ
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5 py-2">
+          {/* Email — read-only */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-gray-700">Email</Label>
+            <Input
+              value={profile.email}
+              disabled
+              className="bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+            />
+            <p className="text-[11px] text-gray-400">Email không thể thay đổi.</p>
+          </div>
+
+          {/* Phone — editable */}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-phone" className="text-sm font-medium text-gray-700">
+              Số điện thoại <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="edit-phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder="0901234567"
+              {...register("phone")}
+              aria-invalid={!!errors.phone}
+              className="border-gray-200 focus-visible:ring-cyan-500/40 focus-visible:border-cyan-500"
+            />
+            {errors.phone && (
+              <p className="text-xs text-red-500">{errors.phone.message}</p>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="border-gray-200"
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Đang lưu…
+                </>
+              ) : (
+                "Lưu thay đổi"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function ProfileSkeleton() {
@@ -78,7 +217,7 @@ function ProfileSkeleton() {
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 px-0">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="h-24 rounded-xl bg-gray-50 border border-gray-100" />
         ))}
       </div>
@@ -95,6 +234,7 @@ function StatCard({
   sub,
   accent = false,
   mono = false,
+  empty = false,
 }: {
   icon: React.ElementType;
   label: string;
@@ -102,6 +242,7 @@ function StatCard({
   sub?: string;
   accent?: boolean;
   mono?: boolean;
+  empty?: boolean;
 }) {
   return (
     <div
@@ -126,8 +267,9 @@ function StatCard({
         </p>
         <p
           className={cn(
-            "mt-1 text-[15px] font-semibold text-gray-900 truncate",
+            "mt-1 text-[15px] font-semibold truncate",
             mono && "font-mono",
+            empty ? "text-gray-300 italic text-sm" : "text-gray-900",
           )}
         >
           {value}
@@ -142,6 +284,7 @@ function StatCard({
 
 export default function ProfilePage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [editOpen, setEditOpen] = useState(false);
 
   const {
     data: profile,
@@ -182,12 +325,12 @@ export default function ProfilePage() {
   const initials = getInitials(profile.email);
   const username = profile.email.split("@")[0];
   const isAdmin = profile.role === "ADMIN";
+  const hasPhone = !!profile.phone;
 
   return (
     <div className="max-w-2xl mx-auto">
       {/* ── Cover + avatar ── */}
       <div className="relative">
-        {/* Cover strip */}
         <div
           className={cn(
             "h-28 rounded-2xl bg-gradient-to-r",
@@ -195,8 +338,8 @@ export default function ProfilePage() {
             "border border-gray-100",
           )}
         >
-          {/* Decorative dots pattern */}
-          <div className="absolute inset-0 rounded-2xl overflow-hidden opacity-40"
+          <div
+            className="absolute inset-0 rounded-2xl overflow-hidden opacity-40"
             style={{
               backgroundImage: "radial-gradient(circle, #cbd5e1 1px, transparent 1px)",
               backgroundSize: "20px 20px",
@@ -204,7 +347,6 @@ export default function ProfilePage() {
           />
         </div>
 
-        {/* Avatar — overlaps cover */}
         <div className="absolute -bottom-10 left-5">
           <div
             className={cn(
@@ -215,12 +357,10 @@ export default function ProfilePage() {
             )}
           >
             {initials}
-            {/* Online dot */}
             <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-400 ring-2 ring-white shadow-sm" />
           </div>
         </div>
 
-        {/* Refresh indicator top-right */}
         {isFetching && (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/80 backdrop-blur px-2.5 py-1 text-[11px] text-gray-500 border border-gray-200 shadow-sm">
             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -252,6 +392,17 @@ export default function ProfilePage() {
           </div>
           <p className="text-sm text-gray-500">{profile.email}</p>
         </div>
+
+        {/* Edit button */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setEditOpen(true)}
+          className="shrink-0 h-8 px-3 border-gray-200 text-gray-600 hover:text-cyan-700 hover:border-cyan-200 hover:bg-cyan-50 transition-colors"
+        >
+          <Pencil className="h-3.5 w-3.5 mr-1.5" />
+          Chỉnh sửa
+        </Button>
       </div>
 
       {/* ── Stat cards ── */}
@@ -261,7 +412,6 @@ export default function ProfilePage() {
           label="ID tài khoản"
           value={`#${profile.id}`}
           mono
-          accent={false}
         />
         <StatCard
           icon={Mail}
@@ -269,6 +419,13 @@ export default function ProfilePage() {
           value={profile.email}
           sub="Địa chỉ đăng nhập"
           accent={isAdmin}
+        />
+        <StatCard
+          icon={Phone}
+          label="Số điện thoại"
+          value={hasPhone ? profile.phone : "Chưa cập nhật"}
+          sub={hasPhone ? "Dùng để liên hệ & thanh toán" : undefined}
+          empty={!hasPhone}
         />
         <StatCard
           icon={ShieldCheck}
@@ -290,6 +447,13 @@ export default function ProfilePage() {
         <Clock className="h-3 w-3" />
         Dữ liệu được đồng bộ từ máy chủ · cache 5 phút
       </div>
+
+      {/* ── Edit dialog ── */}
+      <EditProfileDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        profile={profile}
+      />
     </div>
   );
 }
