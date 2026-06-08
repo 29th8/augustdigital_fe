@@ -42,7 +42,6 @@ const STATUS_OPTIONS: { value: OrderStatus | ""; label: string }[] = [
   { value: "COMPLETED", label: "Hoàn thành" },
   { value: "PARTIALLY_COMPLETED", label: "Hoàn thành một phần" },
   { value: "PAID_PENDING_STOCK", label: "Chờ nhập kho" },
-  { value: "CANCELLED", label: "Đã hủy" },
   { value: "EXPIRED", label: "Hết hạn" },
 ];
 

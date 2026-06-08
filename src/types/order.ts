@@ -7,8 +7,8 @@ export type OrderStatus =
   | "COMPLETED"
   | "PARTIALLY_COMPLETED"
   | "PAID_PENDING_STOCK"
-  | "CANCELLED"
-  | "FAILED"
+  | "CANCELLED" // Not in BE enum — kept for Zod schema compatibility
+  | "FAILED"    // In BE enum but never set on orders — kept for Zod schema compatibility
   | "EXPIRED";
 
 /** Statuses after which no further automatic transitions occur. */
