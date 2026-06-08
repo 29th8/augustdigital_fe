@@ -27,7 +27,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import AuthService from "@/services/auth.service";
 import useAuthStore from "@/store/useAuthStore";
@@ -172,7 +171,7 @@ function EditProfileDialog({
             )}
           </div>
 
-          <DialogFooter className="pt-2">
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -196,7 +195,7 @@ function EditProfileDialog({
                 "Lưu thay đổi"
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
