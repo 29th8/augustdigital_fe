@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Package, ArrowRight } from "lucide-react";
+import { Package } from "lucide-react";
 import type { Product } from "@/types/product";
 import { formatVND } from "@/lib/formatVND";
 import { cn } from "@/lib/utils";
@@ -74,9 +74,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
 
         {/* Footer */}
-        <div className={cn(
-          "mt-auto pt-3 border-t border-gray-100 flex items-center justify-between",
-        )}>
+        <div className="mt-auto pt-3 border-t border-gray-100">
           {lowestPrice !== null ? (
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Từ</p>
@@ -85,10 +83,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           ) : (
             <span className="text-xs text-gray-300 italic">Chưa có gói</span>
           )}
-
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 border border-sky-100 group-hover:bg-sky-100 transition-colors">
-            <ArrowRight className="h-3.5 w-3.5 text-sky-500" />
-          </div>
         </div>
       </div>
     </Link>
