@@ -1,16 +1,24 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { ProductListParams } from "@/types/product";
 import type { Category } from "@/types/category";
 
 const SORT_OPTIONS = [
   { label: "Mới nhất", value: "newest" },
-  { label: "Giá: Thấp đến Cao", value: "price_asc" },
-  { label: "Giá: Cao đến Thấp", value: "price_desc" },
+  { label: "Giá: Thấp → Cao", value: "price_asc" },
+  { label: "Giá: Cao → Thấp", value: "price_desc" },
 ] as const;
 
 interface ProductFilterProps {
@@ -27,13 +35,15 @@ export default function ProductFilter({ params, categories = [], onFilter }: Pro
       e.preventDefault();
       onFilter({ keyword: search.trim() || undefined });
     },
-    [search, onFilter]
+    [search, onFilter],
   );
 
   const clearSearch = () => {
     setSearch("");
     onFilter({ keyword: undefined });
   };
+
+  const hasFilters = !!(params.category_id || params.keyword || params.sort);
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
@@ -48,13 +58,13 @@ export default function ProductFilter({ params, categories = [], onFilter }: Pro
             if (val === "") onFilter({ keyword: undefined });
           }}
           placeholder="Tìm kiếm sản phẩm…"
-          className="pl-9 pr-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-cyan-500"
+          className="pl-9 pr-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-sky-500/40 focus-visible:border-sky-400"
         />
         {search && (
           <button
             type="button"
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -63,36 +73,47 @@ export default function ProductFilter({ params, categories = [], onFilter }: Pro
 
       {/* Category */}
       {categories.length > 0 && (
-        <select
-          value={params.category_id ?? ""}
-          onChange={(e) => onFilter({ category_id: e.target.value ? Number(e.target.value) : undefined })}
-          className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        <Select
+          value={params.category_id ? String(params.category_id) : "_all"}
+          onValueChange={(v) =>
+            onFilter({ category_id: v === "_all" ? undefined : Number(v) })
+          }
         >
-          <option value="">Tất cả danh mục</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-full sm:w-48 bg-white border-gray-200 text-sm">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-gray-400 mr-1.5 shrink-0" />
+            <SelectValue placeholder="Tất cả danh mục" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">Tất cả danh mục</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
       {/* Sort */}
-      <select
-        value={params.sort ?? ""}
-        onChange={(e) => onFilter({ sort: e.target.value || undefined })}
-        className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+      <Select
+        value={params.sort ?? "_none"}
+        onValueChange={(v) => onFilter({ sort: v === "_none" ? undefined : v })}
       >
-        <option value="">Sắp xếp theo</option>
-        {SORT_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-full sm:w-44 bg-white border-gray-200 text-sm">
+          <SelectValue placeholder="Sắp xếp theo" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="_none">Sắp xếp theo</SelectItem>
+          {SORT_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-      {/* Active filters badge */}
-      {(params.category_id || params.keyword || params.sort) && (
+      {/* Clear filters */}
+      {hasFilters && (
         <Button
           variant="ghost"
           size="sm"
@@ -100,7 +121,10 @@ export default function ProductFilter({ params, categories = [], onFilter }: Pro
             setSearch("");
             onFilter({ category_id: undefined, keyword: undefined, sort: undefined });
           }}
-          className="text-xs text-gray-500 hover:text-gray-900"
+          className={cn(
+            "text-xs font-medium transition-colors",
+            "text-gray-500 hover:text-red-600 hover:bg-red-50",
+          )}
         >
           <X className="h-3.5 w-3.5 mr-1" />
           Xóa bộ lọc
