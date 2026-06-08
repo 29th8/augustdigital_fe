@@ -133,14 +133,14 @@ function EditProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md p-6">
+        <DialogHeader className="mb-4">
           <DialogTitle className="text-base font-semibold text-gray-900">
             Chỉnh sửa hồ sơ
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5 py-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           {/* Email — read-only */}
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-gray-700">Email</Label>
@@ -171,7 +171,8 @@ function EditProfileDialog({
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
