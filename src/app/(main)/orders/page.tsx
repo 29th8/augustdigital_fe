@@ -37,10 +37,7 @@ import type { LookupFormValues } from "@/components/orders/OrderLookupForm";
 const STATUS_OPTIONS: { value: OrderStatus | ""; label: string }[] = [
   { value: "", label: "Tất cả trạng thái" },
   { value: "PENDING", label: "Chờ thanh toán" },
-  { value: "PAID", label: "Đã thanh toán" },
-  { value: "PROCESSING", label: "Đang xử lý" },
   { value: "COMPLETED", label: "Hoàn thành" },
-  { value: "PARTIALLY_COMPLETED", label: "Hoàn thành một phần" },
   { value: "PAID_PENDING_STOCK", label: "Chờ nhập kho" },
   { value: "EXPIRED", label: "Hết hạn" },
 ];
